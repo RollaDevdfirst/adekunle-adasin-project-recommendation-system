@@ -1,11 +1,16 @@
-import Home from './pages/home'
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Recommendations from "./pages/Recommendations";
+import Admin from "./pages/Admin";
 
-function App() {
+export default function App() {
   return (
-    <>
-      <Home />
-    </>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/recommendations" element={<Recommendations />} />
+        <Route path="/admin" element={<Admin />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
-
-export default App
