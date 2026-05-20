@@ -9,7 +9,7 @@ app.use(express.json());
 
 app.get("/", (req, res) => {
     res.send("Backend is runnig right now🚀");
-}) ;
+});
 
 const PORT = process.env.PORT || 5000;
 

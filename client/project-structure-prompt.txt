@@ -1,0 +1,31 @@
+Act as a senior React frontend architect.
+
+I am building the frontend module for an AI-Powered Student Academic Support and Learning Resource Platform.
+
+Tech stack:
+
+* React
+* Vite
+* JavaScript (not TypeScript)
+
+Generate a clean scalable folder structure for a React frontend that includes:
+
+* pages
+* components
+* services
+* hooks
+* utils
+* assets
+* admin section
+* recommendation section
+
+The app will include:
+
+* Recommended resources UI
+* Search/filter functionality
+* Admin upload page
+* API integration with backend
+* Resource cards
+* Loading/error states
+
+Keep the structure modular and beginner-friendly.
