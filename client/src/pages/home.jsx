@@ -72,10 +72,6 @@ export default function Home() {
 
   return (
     <>
-      {/* <style>{`
-        
-      `}</style> */}
-
       {/* ── Navbar ── */}
       <nav className={`nav${scrolled ? " scrolled" : ""}`}>
         <div className="nav-inner">

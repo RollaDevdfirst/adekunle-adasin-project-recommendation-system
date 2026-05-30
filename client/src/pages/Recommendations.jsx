@@ -3,7 +3,12 @@ import "./Recommendations.css";
 
 // ── Sample fallback data (replace with real API response) ──
 const MOCK_RESULTS = [
-  { id: 1, title: "Introduction to Calculus – Lecture Notes", type: "PDF", course: "Mathematics", link: "https://example.com/calculus-notes.pdf" },
+  { id: 1, 
+    title: "Introduction to Calculus – Lecture Notes", 
+    type: "PDF", 
+    course: "Mathematics", 
+    link: "https://example.com/calculus-notes.pdf" 
+  },
   { id: 2, title: "Limits and Continuity – Video Series", type: "Video", course: "Mathematics", link: "https://example.com/limits-video" },
   { id: 3, title: "Data Structures & Algorithms Overview", type: "PDF", course: "Computer Science", link: "https://example.com/dsa.pdf" },
   { id: 4, title: "Sorting Algorithms Visualised", type: "Video", course: "Computer Science", link: "https://example.com/sorting" },
