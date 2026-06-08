@@ -1,23 +1,21 @@
 import { useState, useEffect } from "react";
 import './admin.css';
 
-const MOCK_RESOURCES = [
-  { id: 1, title: "Introduction to Calculus – Lecture Notes", course: "Mathematics", type: "PDF", link: "https://example.com/calculus.pdf" },
-  { id: 2, title: "Limits and Continuity – Video Series", course: "Mathematics", type: "Video", link: "https://example.com/limits" },
-  { id: 3, title: "Data Structures & Algorithms Overview", course: "Computer Science", type: "PDF", link: "https://example.com/dsa.pdf" },
-  { id: 4, title: "Sorting Algorithms Visualised", course: "Computer Science", type: "Video", link: "https://example.com/sorting" },
-  { id: 5, title: "Thermodynamics Practice Problems", course: "Physics", type: "PDF", link: "https://example.com/thermo.pdf" },
-];
-
 const COURSES = ["Mathematics", "Computer Science", "Physics", "Chemistry", "Biology", "English", "Economics"];
 const TYPES   = ["PDF", "Video", "Link"];
-const EMPTY_FORM = { title: "", course: COURSES[0], type: TYPES[0], link: "" };
+const EMPTY_FORM = { title: "", course: COURSES[0], type: TYPES[0], link: "", keywords: "" };
+
+const API = "http://localhost:5000";
 
 function getUser() {
   try {
     const raw = localStorage.getItem("edureach_user");
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
+}
+
+function getToken() {
+  return localStorage.getItem("edureach_token") || "";
 }
 
 export default function Admin() {
@@ -34,7 +32,9 @@ export default function Admin() {
   const [deleting, setDeleting]         = useState(false);
   const [search, setSearch]             = useState("");
   const [typeFilter, setTypeFilter]     = useState("All");
+  const [apiError, setApiError]         = useState("");
 
+  // Auth check
   useEffect(() => {
     setTimeout(() => {
       const user = getUser();
@@ -44,45 +44,97 @@ export default function Admin() {
     }, 0);
   }, []);
 
+  // Fetch all resources from backend
   useEffect(() => {
     if (!authorized) return;
     const load = async () => {
       setLoadingData(true);
-      await new Promise((r) => setTimeout(r, 800));
-      setResources(MOCK_RESOURCES);
-      setLoadingData(false);
+      setApiError("");
+      try {
+        const res = await fetch(`${API}/api/resources`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        if (!res.ok) throw new Error("Failed to load resources");
+        const data = await res.json();
+        setResources(data.resources);
+      } catch (err) {
+        setApiError("Could not load resources. Make sure the backend is running.");
+        setResources([]);
+        console.error(err);
+      } finally {
+        setLoadingData(false);
+      }
     };
     load();
   }, [authorized]);
 
   const filtered = resources.filter((r) => {
-    const matchSearch = r.title.toLowerCase().includes(search.toLowerCase()) || r.course.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = r.title.toLowerCase().includes(search.toLowerCase()) ||
+                        r.course.toLowerCase().includes(search.toLowerCase());
     const matchType   = typeFilter === "All" || r.type === typeFilter;
     return matchSearch && matchType;
   });
 
-  const openAdd = () => { setEditTarget(null); setForm(EMPTY_FORM); setFormError(""); setDrawerOpen(true); };
-  const openEdit = (r) => { setEditTarget(r); setForm({ title: r.title, course: r.course, type: r.type, link: r.link }); setFormError(""); setDrawerOpen(true); };
+  const openAdd  = () => { setEditTarget(null); setForm(EMPTY_FORM); setFormError(""); setDrawerOpen(true); };
+  const openEdit = (r) => {
+    setEditTarget(r);
+    setForm({ title: r.title, course: r.course, type: r.type, link: r.link, keywords: r.keywords || "" });
+    setFormError("");
+    setDrawerOpen(true);
+  };
   const closeDrawer = () => { setDrawerOpen(false); setEditTarget(null); };
 
+  // Save (Add or Edit)
   const handleSave = async () => {
     if (!form.title.trim()) { setFormError("Title is required."); return; }
     if (!form.link.trim())  { setFormError("Link is required."); return; }
-    setFormError(""); setSaving(true);
-    await new Promise((r) => setTimeout(r, 700));
-    if (editTarget) {
-      setResources((prev) => prev.map((r) => r.id === editTarget.id ? { ...r, ...form } : r));
-    } else {
-      setResources((prev) => [{ id: Date.now(), ...form }, ...prev]);
+    setFormError("");
+    setSaving(true);
+    try {
+      if (editTarget) {
+        const res = await fetch(`${API}/api/resources/${editTarget.id}`, {
+          method:  "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify(form),
+        });
+        if (!res.ok) throw new Error("Failed to update");
+        setResources((prev) => prev.map((r) => r.id === editTarget.id ? { ...r, ...form } : r));
+      } else {
+        const res = await fetch(`${API}/api/resources`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify(form),
+        });
+        if (!res.ok) throw new Error("Failed to add");
+        const data = await res.json();
+        setResources((prev) => [data.resource, ...prev]);
+      }
+      closeDrawer();
+    } catch (err) {
+      setFormError("Failed to save. Please try again.");
+      console.error(err);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false); closeDrawer();
   };
 
+  // Delete
   const handleDelete = async () => {
     setDeleting(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setResources((prev) => prev.filter((r) => r.id !== deleteTarget.id));
-    setDeleting(false); setDeleteTarget(null);
+    try {
+      const res = await fetch(`${API}/api/resources/${deleteTarget.id}`, {
+        method:  "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error("Failed to delete");
+      setResources((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteTarget(null);
+      console.error(err);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleLogout = () => {
@@ -113,9 +165,6 @@ export default function Admin() {
 
   return (
     <>
-      
-
-      {/* ── Topbar ── */}
       <header className="topbar">
         <div className="topbar-inner">
           <a href="/" className="topbar-logo">Edu<span>Reach</span></a>
@@ -129,8 +178,6 @@ export default function Admin() {
       </header>
 
       <main className="page">
-
-        {/* page top */}
         <div className="page-top">
           <div>
             <div className="page-eyebrow">Resource Management</div>
@@ -140,7 +187,16 @@ export default function Admin() {
           <button className="btn btn-accent" onClick={openAdd}>+ Add Resource</button>
         </div>
 
-        {/* stats */}
+        {apiError && (
+          <div style={{
+            background: "rgba(240,96,96,0.08)", border: "1px solid rgba(240,96,96,0.2)",
+            borderRadius: "0.5rem", padding: "0.75rem 1rem",
+            fontSize: "0.82rem", color: "#f06060", marginBottom: "1.5rem"
+          }}>
+            {apiError}
+          </div>
+        )}
+
         <div className="stats-grid">
           {stats.map((s) => (
             <div key={s.label} className="stat-card">
@@ -150,30 +206,19 @@ export default function Admin() {
           ))}
         </div>
 
-        {/* toolbar */}
         <div className="toolbar">
-          <input
-            className="toolbar-search"
-            type="text"
-            placeholder="Search by title or course…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <input className="toolbar-search" type="text" placeholder="Search by title or course…"
+            value={search} onChange={(e) => setSearch(e.target.value)} />
           {["All", ...TYPES].map((t) => (
             <button key={t} className={`chip${typeFilter === t ? " on" : ""}`} onClick={() => setTypeFilter(t)}>{t}</button>
           ))}
         </div>
 
-        {/* table */}
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Title</th>
-                <th>Course</th>
-                <th>Type</th>
-                <th>Link</th>
-                <th>Actions</th>
+                <th>Title</th><th>Course</th><th>Type</th><th>Link</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -216,7 +261,6 @@ export default function Admin() {
         </div>
       </main>
 
-      {/* ── Drawer ── */}
       {drawerOpen && (
         <>
           <div className="drawer-overlay" onClick={closeDrawer} />
@@ -228,16 +272,13 @@ export default function Admin() {
               </div>
               <button className="drawer-close" onClick={closeDrawer}>✕</button>
             </div>
-
             <div className="drawer-body">
               {formError && <div className="form-err">{formError}</div>}
-
               <div className="fg">
                 <label className="fl">Resource Title</label>
-                <input className="fi" type="text" placeholder="e.g. Introduction to Calculus – Lecture Notes"
+                <input className="fi" type="text" placeholder="e.g. Introduction to Calculus"
                   value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
               </div>
-
               <div className="form-row">
                 <div className="fg">
                   <label className="fl">Course</label>
@@ -252,14 +293,17 @@ export default function Admin() {
                   </select>
                 </div>
               </div>
-
               <div className="fg">
                 <label className="fl">Resource Link</label>
                 <input className="fi" type="url" placeholder="https://example.com/resource"
                   value={form.link} onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))} />
               </div>
+              <div className="fg">
+                <label className="fl">Keywords <span style={{ color: "var(--muted)", fontWeight: 300 }}>(comma separated)</span></label>
+                <input className="fi" type="text" placeholder="e.g. calculus, derivatives, integration"
+                  value={form.keywords} onChange={(e) => setForm((f) => ({ ...f, keywords: e.target.value }))} />
+              </div>
             </div>
-
             <div className="drawer-footer">
               <button className="btn btn-ghost" onClick={closeDrawer}>Cancel</button>
               <button className="btn btn-accent" onClick={handleSave} disabled={saving}>
@@ -270,15 +314,12 @@ export default function Admin() {
         </>
       )}
 
-      {/* ── Delete Confirm ── */}
       {deleteTarget && (
         <div className="del-overlay" onClick={(e) => { if (e.target === e.currentTarget) setDeleteTarget(null); }}>
           <div className="del-modal">
             <div className="del-icon">🗑️</div>
             <div className="del-title">Delete this resource?</div>
-            <p className="del-sub">
-              "<strong>{deleteTarget.title}</strong>" will be permanently removed. This cannot be undone.
-            </p>
+            <p className="del-sub">"<strong>{deleteTarget.title}</strong>" will be permanently removed. This cannot be undone.</p>
             <div className="del-actions">
               <button className="btn btn-ghost" onClick={() => setDeleteTarget(null)}>Cancel</button>
               <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>

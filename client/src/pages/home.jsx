@@ -27,7 +27,7 @@ const STEPS = [
 
 const PREVIEW_RESOURCES = [
   {
-    title: "Introduction to Calculus – Lecture Notes",
+    title: "Introduction to Calculus - Lecture Notes",
     course: "Mathematics",
     type: "PDF",
   },
@@ -43,17 +43,16 @@ const PREVIEW_RESOURCES = [
   },
 ];
 
-// const STATS = [
-//   { value: "500+", label: "Resources" },
-//   { value: "20+", label: "Courses" },
-//   { value: "AI", label: "Powered" },
-// ];
-
 export default function Home() {
-  const [query, setQuery] = useState("");
+  const [query, setQuery]       = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [authModal, setAuthModal] = useState(null); // 'login' | 'signup' | null
+
+  // ── Auth form state ──
+  const [authForm, setAuthForm]       = useState({ name: "", email: "", password: "", confirm: "" });
+  const [authError, setAuthError]     = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -61,13 +60,104 @@ export default function Home() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // ── Switch modal tab and reset form ──
+  const switchModal = (type) => {
+    setAuthModal(type);
+    setAuthForm({ name: "", email: "", password: "", confirm: "" });
+    setAuthError("");
+  };
+
+  const closeModal = () => {
+    setAuthModal(null);
+    setAuthForm({ name: "", email: "", password: "", confirm: "" });
+    setAuthError("");
+  };
+
+  // ── Handle search ──
   const handleGetRecommendations = () => {
     if (!query.trim()) return;
-    setAuthModal("login");
+    // If already logged in, go straight to recommendations
+    const user = localStorage.getItem("edureach_user");
+    if (user) {
+      window.location.href = `/recommendations?q=${encodeURIComponent(query)}`;
+    } else {
+      setAuthModal("login");
+    }
   };
 
   const handleKey = (e) => {
     if (e.key === "Enter") handleGetRecommendations();
+  };
+
+  // ── Auth submit ──
+  const handleAuthSubmit = async () => {
+    setAuthError("");
+
+    // Validation
+    if (!authForm.email.trim() || !authForm.password.trim()) {
+      setAuthError("Email and password are required."); return;
+    }
+    if (authModal === "signup" && !authForm.name.trim()) {
+      setAuthError("Full name is required."); return;
+    }
+    if (authModal === "signup" && authForm.password !== authForm.confirm) {
+      setAuthError("Passwords do not match."); return;
+    }
+    if (authForm.password.length < 6) {
+      setAuthError("Password must be at least 6 characters."); return;
+    }
+
+    setAuthLoading(true);
+
+    try {
+      const endpoint = authModal === "login"
+        ? "http://localhost:5000/api/auth/login"
+        : "http://localhost:5000/api/auth/signup";
+
+      const body = authModal === "login"
+        ? { email: authForm.email, password: authForm.password }
+        : { name: authForm.name, email: authForm.email, password: authForm.password };
+
+      const res  = await fetch(endpoint, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAuthError(data.message || "Something went wrong."); return;
+      }
+
+      // Store token and user in localStorage
+      localStorage.setItem("edureach_token", data.token);
+      localStorage.setItem("edureach_user", JSON.stringify(data.user));
+
+      // Redirect based on role
+      if (data.user.role === "admin") {
+        window.location.href = "/admin";
+      } else {
+        // If there was a search query, carry it to recommendations
+        if (query.trim()) {
+          window.location.href = `/recommendations?q=${encodeURIComponent(query)}`;
+        } else {
+          window.location.href = "/recommendations";
+        }
+      }
+    } catch (err) {
+      setAuthError("Could not connect to server. Make sure the backend is running.");
+      console.error(err);
+
+    } finally {
+      setAuthLoading(false);
+      setAuthForm({ name: "", email: "", password: "", confirm: "" });
+    }
+  };
+
+  // Allow submitting with Enter key in modal
+  const handleModalKey = (e) => {
+    if (e.key === "Enter") handleAuthSubmit();
   };
 
   return (
@@ -82,8 +172,8 @@ export default function Home() {
             ))}
           </ul>
           <div className="nav-actions">
-            <button className="btn-ghost" onClick={() => setAuthModal("login")}>Log in</button>
-            <button className="btn-accent" onClick={() => setAuthModal("signup")}>Sign up</button>
+            <button className="btn-ghost" onClick={() => switchModal("login")}>Log in</button>
+            <button className="btn-accent" onClick={() => switchModal("signup")}>Sign up</button>
           </div>
           <button className="hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Toggle menu">
             <span /><span /><span />
@@ -97,8 +187,8 @@ export default function Home() {
           <a key={l.label} href={l.href} onClick={() => setMenuOpen(false)}>{l.label}</a>
         ))}
         <div className="mobile-drawer-actions">
-          <button className="btn-ghost" onClick={() => { setMenuOpen(false); setAuthModal("login"); }}>Log in</button>
-          <button className="btn-accent" onClick={() => { setMenuOpen(false); setAuthModal("signup"); }}>Sign up</button>
+          <button className="btn-ghost" onClick={() => { setMenuOpen(false); switchModal("login"); }}>Log in</button>
+          <button className="btn-accent" onClick={() => { setMenuOpen(false); switchModal("signup"); }}>Sign up</button>
         </div>
       </div>
 
@@ -186,13 +276,13 @@ export default function Home() {
           </div>
           <div className="resource-grid">
             {PREVIEW_RESOURCES.map((r) => (
-              <div key={r.title} className={`resource-card glass`}>
+              <div key={r.title} className="resource-card glass">
                 <div className="resource-top">
                   <span className={`resource-badge badge-${r.type.toLowerCase()}`}>{r.type}</span>
                   <span className="resource-course">{r.course}</span>
                 </div>
                 <div className="resource-title">{r.title}</div>
-                <button className="resource-cta" onClick={() => setAuthModal("login")}>
+                <button className="resource-cta" onClick={() => switchModal("login")}>
                   Login to view
                 </button>
               </div>
@@ -233,10 +323,10 @@ export default function Home() {
         <h2>Ready to find what you need?</h2>
         <p>Create an account to access the full resource library and get AI-powered recommendations.</p>
         <div className="cta-actions">
-          <button className="btn-accent" style={{ padding: "0.65rem 1.75rem", fontSize: "0.9rem" }} onClick={() => setAuthModal("signup")}>
+          <button className="btn-accent" style={{ padding: "0.65rem 1.75rem", fontSize: "0.9rem" }} onClick={() => switchModal("signup")}>
             Create account
           </button>
-          <button className="btn-ghost" style={{ padding: "0.65rem 1.75rem", fontSize: "0.9rem" }} onClick={() => setAuthModal("login")}>
+          <button className="btn-ghost" style={{ padding: "0.65rem 1.75rem", fontSize: "0.9rem" }} onClick={() => switchModal("login")}>
             Log in
           </button>
         </div>
@@ -252,46 +342,105 @@ export default function Home() {
 
       {/* ── Auth Modal ── */}
       {authModal && (
-        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setAuthModal(null); }}>
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
           <div className="modal">
-            <button className="modal-close" onClick={() => setAuthModal(null)}>✕</button>
+            <button className="modal-close" onClick={closeModal}>✕</button>
             <div className="modal-logo">Edu<span>Reach</span></div>
             <p className="modal-sub">
               {authModal === "login" ? "Welcome back. Log in to continue." : "Create your student account."}
             </p>
+
+            {/* Tabs */}
             <div className="modal-tabs">
-              <button className={`modal-tab${authModal === "login" ? " active" : ""}`} onClick={() => setAuthModal("login")}>Log in</button>
-              <button className={`modal-tab${authModal === "signup" ? " active" : ""}`} onClick={() => setAuthModal("signup")}>Sign up</button>
+              <button className={`modal-tab${authModal === "login" ? " active" : ""}`} onClick={() => switchModal("login")}>Log in</button>
+              <button className={`modal-tab${authModal === "signup" ? " active" : ""}`} onClick={() => switchModal("signup")}>Sign up</button>
             </div>
 
+            {/* Name — signup only */}
             {authModal === "signup" && (
               <div className="form-group">
                 <label className="form-label">Full name</label>
-                <input className="form-input" type="text" placeholder="John Doe" />
+                <input
+                  className="form-input"
+                  type="text"
+                  placeholder="John Doe"
+                  value={authForm.name}
+                  onChange={(e) => setAuthForm((f) => ({ ...f, name: e.target.value }))}
+                  onKeyDown={handleModalKey}
+                />
               </div>
             )}
+
+            {/* Email */}
             <div className="form-group">
               <label className="form-label">Email address</label>
-              <input className="form-input" type="email" placeholder="you@university.edu" />
+              <input
+                className="form-input"
+                type="email"
+                placeholder="you@university.edu"
+                value={authForm.email}
+                onChange={(e) => setAuthForm((f) => ({ ...f, email: e.target.value }))}
+                onKeyDown={handleModalKey}
+              />
             </div>
+
+            {/* Password */}
             <div className="form-group">
               <label className="form-label">Password</label>
-              <input className="form-input" type="password" placeholder="••••••••" />
+              <input
+                className="form-input"
+                type="password"
+                placeholder="••••••••"
+                value={authForm.password}
+                onChange={(e) => setAuthForm((f) => ({ ...f, password: e.target.value }))}
+                onKeyDown={handleModalKey}
+              />
             </div>
+
+            {/* Confirm password — signup only */}
             {authModal === "signup" && (
               <div className="form-group">
                 <label className="form-label">Confirm password</label>
-                <input className="form-input" type="password" placeholder="••••••••" />
+                <input
+                  className="form-input"
+                  type="password"
+                  placeholder="••••••••"
+                  value={authForm.confirm}
+                  onChange={(e) => setAuthForm((f) => ({ ...f, confirm: e.target.value }))}
+                  onKeyDown={handleModalKey}
+                />
               </div>
             )}
-            <button className="modal-submit">
-              {authModal === "login" ? "Log in" : "Create account"}
+
+            {/* Error message */}
+            {authError && (
+              <p style={{
+                color: "#f06060", fontSize: "0.78rem",
+                marginBottom: "0.75rem", padding: "0.45rem 0.75rem",
+                background: "rgba(240,96,96,0.08)",
+                border: "1px solid rgba(240,96,96,0.2)",
+                borderRadius: "0.5rem"
+              }}>
+                {authError}
+              </p>
+            )}
+
+            {/* Submit */}
+            <button
+              className="modal-submit"
+              onClick={handleAuthSubmit}
+              disabled={authLoading}
+              style={{ opacity: authLoading ? 0.6 : 1, cursor: authLoading ? "not-allowed" : "pointer" }}
+            >
+              {authLoading ? "Please wait…" : authModal === "login" ? "Log in" : "Create account"}
             </button>
+
+            {/* Switch link */}
             <div className="modal-switch">
               {authModal === "login" ? (
-                <>Don't have an account?<button onClick={() => setAuthModal("signup")}>Sign up</button></>
+                <>Don't have an account?<button onClick={() => switchModal("signup")}>Sign up</button></>
               ) : (
-                <>Already have an account?<button onClick={() => setAuthModal("login")}>Log in</button></>
+                <>Already have an account?<button onClick={() => switchModal("login")}>Log in</button></>
               )}
             </div>
           </div>

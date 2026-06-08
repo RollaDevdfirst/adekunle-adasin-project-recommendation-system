@@ -2,19 +2,19 @@ import { useState, useEffect, useCallback } from "react";
 import "./Recommendations.css";
 
 // ── Sample fallback data (replace with real API response) ──
-const MOCK_RESULTS = [
-  { id: 1, 
-    title: "Introduction to Calculus – Lecture Notes", 
-    type: "PDF", 
-    course: "Mathematics", 
-    link: "https://example.com/calculus-notes.pdf" 
-  },
-  { id: 2, title: "Limits and Continuity – Video Series", type: "Video", course: "Mathematics", link: "https://example.com/limits-video" },
-  { id: 3, title: "Data Structures & Algorithms Overview", type: "PDF", course: "Computer Science", link: "https://example.com/dsa.pdf" },
-  { id: 4, title: "Sorting Algorithms Visualised", type: "Video", course: "Computer Science", link: "https://example.com/sorting" },
-  { id: 5, title: "Thermodynamics Practice Problems", type: "PDF", course: "Physics", link: "https://example.com/thermo.pdf" },
-  { id: 6, title: "Newton's Laws – Lecture Slides", type: "Link", course: "Physics", link: "https://example.com/newton" },
-];
+// const MOCK_RESULTS = [
+//   { id: 1, 
+//     title: "Introduction to Calculus – Lecture Notes", 
+//     type: "PDF", 
+//     course: "Mathematics", 
+//     link: "https://example.com/calculus-notes.pdf" 
+//   },
+//   { id: 2, title: "Limits and Continuity – Video Series", type: "Video", course: "Mathematics", link: "https://example.com/limits-video" },
+//   { id: 3, title: "Data Structures & Algorithms Overview", type: "PDF", course: "Computer Science", link: "https://example.com/dsa.pdf" },
+//   { id: 4, title: "Sorting Algorithms Visualised", type: "Video", course: "Computer Science", link: "https://example.com/sorting" },
+//   { id: 5, title: "Thermodynamics Practice Problems", type: "PDF", course: "Physics", link: "https://example.com/thermo.pdf" },
+//   { id: 6, title: "Newton's Laws – Lecture Slides", type: "Link", course: "Physics", link: "https://example.com/newton" },
+// ];
 
 const COURSES = ["All Courses", "Mathematics", "Computer Science", "Physics", "Chemistry", "Biology"];
 const TYPES   = ["All Types", "PDF", "Video", "Link"];
@@ -55,32 +55,36 @@ export default function Recommendations() {
 }, []);
 
 
-  const fetchRecommendations = useCallback(async () => {
+  // eslint-disable-next-line no-unused-vars
+  const fetchRecommendations = useCallback(async (keywords) => {
     setTimeout(() => {
-    setLoading(true);
-    setError(null);
-    setSearched(true);
-    setType("All Types");
-  }, 0);
+      setLoading(true);
+      setError(null);
+      setSearched(true);
+      setType("All Types");
+    }, 0);
 
     try {
-    //   ── Real API call (uncomment when backend is ready) ── (keywords)
-      // const res = await fetch("/recommend", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ user_id: 1, keywords: keywords.split(",").map(k => k.trim()) }),
-      // });
-      // if (!res.ok) throw new Error("Failed to fetch recommendations");
-      // const data = await res.json();
-      // setResults(data.recommendations);
+      const storedUser = localStorage.getItem("edureach_user");
+      const user = storedUser ? JSON.parse(storedUser) : null;
 
-      // ── Mock delay for now ──
-      await new Promise((r) => setTimeout(r, 1400));
-      setResults(MOCK_RESULTS);
-    } catch (err) {
+      const res = await fetch("http://localhost:5000/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user?.id || null,
+          keywords: keywords.split(",").map((k) => k.trim()).filter((k) => k),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch recommendations");
+
+      const data = await res.json();
+      setResults(data.recommendations);
+    } catch (error) {
       setError("Could not load recommendations. Please try again.");
+      console.error("Error fetching recommendations:", error);
       setResults([]);
-      console.log(err);
     } finally {
       setLoading(false);
     }
